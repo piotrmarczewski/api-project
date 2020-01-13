@@ -1,4 +1,5 @@
 import sqlite3
+import pandas as pd
 
 
 class Database:
@@ -6,18 +7,9 @@ class Database:
         self._conn = sqlite3.connect(name)
         self._cursor = self._conn.cursor()
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.commit()
-        self.connection.close()
-
-    @property
     def connection(self):
         return self._conn
 
-    @property
     def cursor(self):
         return self._cursor
 
@@ -36,3 +28,6 @@ class Database:
     def query(self, sql, params=None):
         self.cursor.execute(sql, params or ())
         return self.fetchall()
+
+    def read_as_pd(self, sql, params=None):
+        return pd.read_sql_query(sql, self.connection(), params=params or ())
