@@ -1,43 +1,89 @@
-from nltk.corpus import stopwords
-from sklearn.feature_extraction.text import CountVectorizer
+# from nltk.corpus import stopwords
+# from sklearn.feature_extraction.text import CountVectorizer
+import codecs
+import sys
+from pprint import pprint
+
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
+from sklearn.model_selection import train_test_split
+
 from Database import Database
-from sklearn import tree
+# from sklearn import tree
+import numpy as np
+import re
+import nltk
+from sklearn.datasets import load_files
+
+# nltk.download('stopwords')
+# nltk.download('wordnet')
+import pickle
+from nltk.corpus import stopwords
+
+import morfeusz2
+
+morf = morfeusz2.Morfeusz()
 
 db = Database('src/sejm_gov_pl_db.db')
 
-# conn = sqlite3.connect("src/sejm_gov_pl_db.db")
-# df = pd.read_sql_query("SELECT * FROM portraits;", db.connection())
 df = db.read_as_pd("SELECT full_name, last_party, speech_raw FROM speech_data sd JOIN portraits po ON sd.id_=po.id_")
-# print(df["speech_raw"][0:100])
 
-vectorizer = CountVectorizer(max_features=1500, min_df=5, max_df=0.7)
-X = vectorizer.fit_transform(df["speech_raw"][1:100]).toarray()
+documents = []
+for sen in range(0, len(df['speech_raw'])):
+    # Remove all the special characters
+    document = re.sub(r'\W', ' ', str(df["speech_raw"][sen]))
+
+    # remove all single characters
+    document = re.sub(r'\s+[a-zA-Z]\s+', ' ', document)
+
+    # Remove single characters from the start
+    document = re.sub(r'\^[a-zA-Z]\s+', ' ', document)
+
+    # Substituting multiple spaces with single space
+    document = re.sub(r'\s+', ' ', document, flags=re.I)
+
+    # Converting to Lowercase
+    document = document.lower()
+
+    # Lemmatization
+    document = document.split()
+    document = [morf.analyse(word)[-1][2][1] for word in document]
+    document = ' '.join(document)
+
+    documents.append(document)
+
+print(documents)
+
+# get stop words
+file = codecs.open('src/polishST.txt', encoding='utf-8')
+polishST = file.read().splitlines()
+file.close()
+
+vectorizer = CountVectorizer(max_features=1500, min_df=5, max_df=0.7, stop_words=polishST)
+X = vectorizer.fit_transform(documents).toarray()
 print(X)
 
-# cls = tree.DecisionTreeClassifier()
-# cls.fit(df["speech_raw"][1:100], df["last_party"][1:100])
-# cls.predict(df["speech_raw"][101:201])
+tfidfconverter = TfidfTransformer()
+X = tfidfconverter.fit_transform(X).toarray()
+print(X)
 
-# db.query("ALTER TABLE portraits ADD new_part_name TEXT;")
-# for row in db.query('SELECT last_party, COUNT(*) FROM speech_data sd JOIN portraits po ON sd.id_=po.id_ GROUP BY last_party ORDER BY COUNT(*) desc'):
-#     print(row)
-# for row in db.query('UPDATE portraits SET new_part_name=REPLACE((SELECT new_part_name FROM portraits po1 WHERE id_=po1.id_),"\r","")'):
-#     print(row)
+# Zestawy szkoleniowe i testowe
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
 
-# for row in db.query('SELECT last_party, new_part_name FROM portraits LIMIT 10'):
-#     print(row)
+# Model klasyfikacji tekstu szkoleniowego i przewidywanie nastrojów
+classifier = RandomForestClassifier(n_estimators=1000, random_state=0)
+classifier.fit(X_train, y_train)
 
-# c = conn.cursor()
-# c2 = conn.cursor()
-#
-# # t = ('%Adam Abramowicz%',)
-# # for row in c.execute('SELECT party_section FROM portraits'):
-# #     print(row)
-# #     a = (row[1],)
-# #     for row2 in c2.execute('SELECT count(*) FROM speech_data WHERE id_=?', a):
-# #         print(row2)
-#
-#
-# t = ('%polskie%',)
-# for row in c.execute('SELECT last_party, COUNT(*) FROM speech_data sd JOIN portraits po ON sd.id_=po.id_ GROUP BY last_party ORDER BY COUNT(*) desc'):
-#     print(row)
+y_pred = classifier.predict(X_test)
+
+#Ocena modelu
+print(confusion_matrix(y_test,y_pred))
+print(classification_report(y_test,y_pred))
+print(accuracy_score(y_test, y_pred))
+
+
+# zamiast dwóch powyzek
+# tfidfconverter = TfidfVectorizer(max_features=1500, min_df=5, max_df=0.7, stop_words=stopwords.words('english'))
+# X = tfidfconverter.fit_transform(documents).toarray()
+
