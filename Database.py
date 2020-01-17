@@ -7,9 +7,11 @@ class Database:
         self._conn = sqlite3.connect(name)
         self._cursor = self._conn.cursor()
 
+    @property
     def connection(self):
         return self._conn
 
+    @property
     def cursor(self):
         return self._cursor
 
@@ -30,4 +32,4 @@ class Database:
         return self.fetchall()
 
     def read_as_pd(self, sql, params=None):
-        return pd.read_sql_query(sql, self.connection(), params=params or ())
+        return pd.read_sql_query(sql, self._conn, params=params or ())
